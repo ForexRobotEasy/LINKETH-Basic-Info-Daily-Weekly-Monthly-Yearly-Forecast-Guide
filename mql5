@@ -1,0 +1,102 @@
+mql5
+// Developer's site: forexroboteasy.com
+// Development: Forex Robot Easy Team
+
+// Include necessary libraries and dependencies
+
+#include <Trade/Trade.mqh>
+#include <Series/Series.mqh>
+#include <Indicators/Indicators.mqh>
+#include <Trade/Trade.mqh>
+#include <Utils/Utils.mqh>
+#include <Logging/Logging.mqh>
+
+// Define global variables
+
+input int fastMaPeriod = 20; // Period for fast moving average
+input int slowMaPeriod = 50; // Period for slow moving average
+input int rsiPeriod = 14; // Period for RSI calculation
+input double rsiThreshold = 70; // RSI threshold for overbought condition
+input double stopLossPercentage = 2; // Stop loss percentage for risk management
+
+CTrade trade; // Trade class instance
+CSeries series; // Series class instance
+CIndicators indicators; // Indicators class instance
+CLogging logging; // Logging class instance
+
+// Initialize the expert advisor
+int OnInit()
+{
+    // Set up logging
+    logging.Open('LINKETH_Trading_Log.txt');
+
+    // Retrieve real-time price data for LINKETH trading pair
+    series.GetRates('LINKETH', PERIOD_D1);
+
+    // Check if data retrieval is successful
+    if (series.Symbol() != 'LINKETH')
+    {
+        logging.Log('Error retrieving price data for LINKETH');
+        return INIT_FAILED;
+    }
+
+    // Set up indicators
+    indicators.SetSymbol('LINKETH');
+    indicators.SetPeriod(PERIOD_D1);
+
+    return INIT_SUCCEEDED;
+}
+
+// Start trading
+void OnTick()
+{
+    // Calculate moving averages
+    double fastMa = indicators.iMA(NULL, 0, fastMaPeriod, 0, MODE_EMA, PRICE_CLOSE, 0);
+    double slowMa = indicators.iMA(NULL, 0, slowMaPeriod, 0, MODE_EMA, PRICE_CLOSE, 0);
+
+    // Calculate RSI
+    double rsi = indicators.iRSI(NULL, 0, rsiPeriod, PRICE_CLOSE, 0);
+
+    // Check for buy signal
+    if (fastMa > slowMa && rsi < rsiThreshold)
+    {
+        // Place buy order
+        double stopLoss = series.Close(1) * (1 - stopLossPercentage / 100);
+        trade.Buy(0.1, stopLoss, 0, 'Buy LINKETH');
+
+        logging.Log('Buy order placed');
+    }
+
+    // Check for sell signal
+    if (fastMa < slowMa && rsi > (100 - rsiThreshold))
+    {
+        // Place sell order
+        double stopLoss = series.Close(1) * (1 + stopLossPercentage / 100);
+        trade.Sell(0.1, stopLoss, 0, 'Sell LINKETH');
+
+        logging.Log('Sell order placed');
+    }
+}
+
+// Calculate profit/loss and generate report
+void OnDeinit(const int reason)
+{
+    // Calculate profit/loss
+    double profit = trade.Profit();
+    double loss = trade.Loss();
+
+    // Calculate overall profitability
+    double overallProfitability = (profit - loss) / (profit + loss) * 100;
+
+    // Calculate trade success rate
+    double tradeSuccessRate = trade.TradesProfitable() / trade.TotalTrades() * 100;
+
+    // Generate report
+    logging.Log('Profit: ' + DoubleToString(profit, 2));
+    logging.Log('Loss: ' + DoubleToString(loss, 2));
+    logging.Log('Overall Profitability: ' + DoubleToString(overallProfitability, 2) + '%');
+    logging.Log('Trade Success Rate: ' + DoubleToString(tradeSuccessRate, 2) + '%');
+
+    // Close logging
+    logging.Close();
+}
